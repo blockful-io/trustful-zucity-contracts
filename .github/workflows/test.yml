@@ -1,6 +1,11 @@
 name: test
 
-on: workflow_dispatch
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 env:
   FOUNDRY_PROFILE: ci
@@ -15,7 +20,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install --frozen-lockfile
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
@@ -30,5 +43,5 @@ jobs:
 
       - name: Run Forge tests
         run: |
-          forge test -vvv
+          forge test --fork-url ${{secrets.RPC_OP}} -vvv --via-ir
         id: test
