@@ -43,5 +43,5 @@ jobs:
 
       - name: Run Forge tests
         run: |
-          forge test --fork-url $RPC_OP -vvv --via-ir
+          forge test --fork-url ${{secrets.RPC_OP}} -vvv --via-ir
         id: test
