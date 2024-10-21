@@ -36,6 +36,13 @@ struct Attestation {
   bytes data; // Custom attestation data.
 }
 
+/// @notice A struct representing a single Session.
+struct Session {
+  bytes32 uid; // A unique identifier of the sessão.
+  uint64 startTime; // The time when the session was created (Unix timestamp).
+  uint64 endTime; // The time when the session was ended (Unix timestamp).
+}
+
 /// @notice A helper function to work with unchecked iterators in loops.
 function uncheckedInc(uint256 i) pure returns (uint256 j) {
   unchecked {
