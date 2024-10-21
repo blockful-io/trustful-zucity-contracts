@@ -22,13 +22,13 @@ jobs:
         with:
           submodules: false
 
-      - name: Install Node.js
-        uses: actions/setup-node@v3
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v1
         with:
-          node-version: '18'
+          bun-version: latest
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
