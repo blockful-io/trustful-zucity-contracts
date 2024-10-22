@@ -17,6 +17,7 @@ error InvalidRole();
 error InvalidWithdraw();
 error NotPayable();
 error Unauthorized();
+error InvalidSession();
 
 /// @author Blockful | 0xneves
 /// @notice ZuVillage Resolver contract for Ethereum Attestation Service.
@@ -41,11 +42,14 @@ contract Resolver is IResolver, AccessControl {
   // Maps schemas ID and role ID to action
   mapping(bytes32 => Action) private _allowedSchemas;
 
-  // Maps session Titles and sessions Structures
-  mapping(string => Session) private _session;
+  // Maps session ids and sessions Structures
+  mapping(bytes32 => Session) private _session;
 
   // Maps all attestation titles (badge titles) to be retrieved by the frontend
   string[] private _attestationTitles;
+
+  // Define a constant for default SESSION_DURATION (30 days in seconds)
+  uint256 private constant DEFAULT_SESSION_DURATION = 30 days;
 
   /// @dev Creates a new resolver.
   /// @param eas The address of the global EAS contract.
@@ -260,6 +264,37 @@ contract Resolver is IResolver, AccessControl {
   /// @inheritdoc IResolver
   function setSchema(bytes32 uid, uint256 action) public onlyRole(ROOT_ROLE) {
     _allowedSchemas[uid] = Action(action);
+  }
+
+  /// @dev creates a new session
+  function sessionCreation(
+    uint256 duration,
+    string memory sessionTitle
+  ) public returns (bytes32 sessionId) {
+    // Check if the caller is a Villager
+    if (!hasRole(VILLAGER_ROLE, msg.sender)) {
+      revert InvalidRole();
+    }
+
+    // Generate a unique session ID
+    sessionId = keccak256(abi.encodePacked(msg.sender, sessionTitle));
+
+    // Check if the session already exists
+    if (_session[sessionId].host != address(0)) {
+      revert InvalidSession();
+    }
+
+    uint256 sessionDuration = duration > 0 ? duration : DEFAULT_SESSION_DURATION;
+    Session memory session = Session({
+      host: msg.sender,
+      title: sessionTitle,
+      startTime: block.timestamp,
+      endTime: block.timestamp + sessionDuration
+    });
+
+    _session[sessionId] = session;
+
+    return sessionId;
   }
 
   /// @dev ETH callback.
