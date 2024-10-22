@@ -38,9 +38,10 @@ struct Attestation {
 
 /// @notice A struct representing a single Session.
 struct Session {
-  bytes32 uid; // A unique identifier of the sessão.
-  uint64 startTime; // The time when the session was created (Unix timestamp).
-  uint64 endTime; // The time when the session was ended (Unix timestamp).
+  address host; // Host of the session
+  string title; // Title of the session
+  uint256 startTime; // The time when the session was created (Unix timestamp).
+  uint256 endTime; // The time when the session was ended (Unix timestamp).
 }
 
 /// @notice A helper function to work with unchecked iterators in loops.
