@@ -2,10 +2,10 @@
 pragma solidity ^0.8.13;
 
 import { Test, console2 } from "forge-std/src/Test.sol";
-import { Resolver } from "../src/resolver/Resolver.sol";
+import { Resolver, NotHostOfTheSession, InvalidRole, InvalidSession } from "../src/resolver/Resolver.sol";
 import { IResolver } from "../src/interfaces/IResolver.sol";
 import { ISchemaRegistry } from "../src/interfaces/ISchemaRegistry.sol";
-import { IEAS } from "../src/interfaces/IEAS.sol";
+import { IEAS, AttestationRequest, AttestationRequestData } from "../src/interfaces/IEAS.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 contract ResolverTest is Test {
@@ -170,5 +170,183 @@ contract ResolverTest is Test {
 
   function revokeRole(bytes32 role, address account) public {
     IAccessControl(address(resolver)).revokeRole(role, account);
+  }
+
+  function test_host_attestation_allowed() public {
+    bytes32[] memory uids = test_access_control_add_schemas();
+    address host = roleReceiver;
+    address atendee = address(0x5678);
+
+    string memory sessionTitle = "TestSession";
+    grantRole(VILLAGER_ROLE, roleReceiver);
+    grantRole(VILLAGER_ROLE, atendee);
+
+    // Create a session
+    vm.startPrank(host);
+    resolver.createSession(0, sessionTitle);
+
+    // Prepare attestation data
+    string memory hostTitle = string(abi.encodePacked("Host_", sessionTitle));
+    bytes memory attestationData = abi.encode(hostTitle, "Test comment");
+
+    // Create attestation request
+    AttestationRequest memory request = AttestationRequest({
+      schema: uids[2],
+      data: AttestationRequestData({
+        recipient: address(0x5678),
+        expirationTime: 0,
+        revocable: false,
+        refUID: bytes32(0),
+        data: attestationData,
+        value: 0
+      })
+    });
+
+    bytes32 attestationUID = eas.attest(request);
+    vm.stopPrank();
+    assertTrue(eas.isAttestationValid(attestationUID), "Attestation should be valid");
+  }
+
+  function test_host_attestation_not_allowed() public {
+    // Setup
+    bytes32[] memory uids = test_access_control_add_schemas();
+    address host = roleReceiver;
+    address atendee = address(0x5678);
+    grantRole(VILLAGER_ROLE, atendee);
+    grantRole(VILLAGER_ROLE, host);
+
+    string memory sessionTitle = "TestSession";
+
+    // Create a session
+    vm.startPrank(host);
+    resolver.createSession(0, sessionTitle);
+
+    // Prepare attestation data
+    string memory hostTitle = string(abi.encodePacked("Host_", sessionTitle));
+    bytes memory attestationData = abi.encode(hostTitle, "Test comment");
+
+    // Create attestation request
+    AttestationRequest memory request = AttestationRequest({
+      schema: uids[2],
+      data: AttestationRequestData({
+        recipient: host,
+        expirationTime: 0,
+        revocable: false,
+        refUID: bytes32(0),
+        data: attestationData,
+        value: 0
+      })
+    });
+
+    // Attempt to attest as a non-host
+    vm.startPrank(atendee);
+    vm.expectRevert(NotHostOfTheSession.selector);
+    eas.attest(request);
+    vm.stopPrank();
+  }
+
+  function test_create_session_as_villager() public {
+    address villager = roleReceiver;
+    string memory sessionTitle = "Test Session";
+    uint256 duration = 1 days;
+
+    grantRole(VILLAGER_ROLE, villager);
+
+    vm.startPrank(villager);
+    bytes32 sessionId = resolver.createSession(duration, sessionTitle);
+    vm.stopPrank();
+
+    assert(sessionId != bytes32(0));
+  }
+
+  function test_create_session_as_non_villager() public {
+    address nonVillager = address(0x5678);
+    string memory sessionTitle = "Test Session";
+    uint256 duration = 1 days;
+    grantRole(VILLAGER_ROLE, roleReceiver);
+
+    vm.startPrank(nonVillager);
+    vm.expectRevert(InvalidRole.selector);
+    resolver.createSession(duration, sessionTitle);
+  }
+
+  function test_create_duplicate_session() public {
+    address villager = roleReceiver;
+    string memory sessionTitle = "Test Session";
+    uint256 duration = 1 days;
+
+    grantRole(VILLAGER_ROLE, villager);
+
+    vm.startPrank(villager);
+    resolver.createSession(duration, sessionTitle);
+
+    vm.expectRevert(InvalidSession.selector);
+    resolver.createSession(duration, sessionTitle);
+    vm.stopPrank();
+  }
+
+  function test_session_attestation_titles_allowed() public {
+    address villager = roleReceiver;
+    string memory sessionTitle = "Test Session";
+    uint256 duration = 1 days;
+
+    grantRole(VILLAGER_ROLE, villager);
+
+    vm.startPrank(villager);
+    resolver.createSession(duration, sessionTitle);
+    vm.stopPrank();
+
+    string memory hostTitle = string(abi.encodePacked("Host_", sessionTitle));
+    string memory attendeeTitle = string(abi.encodePacked("Attendee_", sessionTitle));
+
+    assert(resolver.allowedAttestationTitles(hostTitle));
+    assert(resolver.allowedAttestationTitles(attendeeTitle));
+  }
+
+  function test_create_session_with_zero_duration() public {
+    address villager = roleReceiver;
+    string memory sessionTitle = "Zero Duration Session";
+    uint256 duration = 0;
+
+    grantRole(VILLAGER_ROLE, villager);
+
+    vm.startPrank(villager);
+    vm.expectRevert(InvalidSession.selector);
+    resolver.createSession(duration, sessionTitle);
+    vm.stopPrank();
+  }
+
+  function test_create_session_with_empty_title() public {
+    address villager = roleReceiver;
+    string memory sessionTitle = "";
+    uint256 duration = 1 days;
+
+    grantRole(VILLAGER_ROLE, villager);
+
+    vm.startPrank(villager);
+    vm.expectRevert(InvalidSession.selector);
+    resolver.createSession(duration, sessionTitle);
+    vm.stopPrank();
+  }
+
+  function test_create_multiple_sessions() public {
+    address villager = roleReceiver;
+    string memory sessionTitle1 = "First Session";
+    string memory sessionTitle2 = "Second Session";
+    uint256 duration = 1 days;
+
+    grantRole(VILLAGER_ROLE, villager);
+
+    vm.startPrank(villager);
+
+    bytes32 sessionId1 = resolver.createSession(duration, sessionTitle1);
+    assert(sessionId1 != bytes32(0));
+
+    bytes32 sessionId2 = resolver.createSession(duration, sessionTitle2);
+    assert(sessionId2 != bytes32(0));
+
+    assert(sessionId1 != sessionId2);
+
+    vm.stopPrank();
   }
 }
