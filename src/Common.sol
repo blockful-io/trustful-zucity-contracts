@@ -50,3 +50,12 @@ function uncheckedInc(uint256 i) pure returns (uint256 j) {
     j = i + 1;
   }
 }
+
+/// @dev Helper function to slice a byte array
+function slice(bytes memory data, uint256 start, uint256 length) pure returns (bytes memory) {
+  bytes memory result = new bytes(length);
+  for (uint i = 0; i < length; i++) {
+    result[i] = data[start + i];
+  }
+  return result;
+}
