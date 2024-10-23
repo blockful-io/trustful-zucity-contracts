@@ -267,7 +267,7 @@ contract Resolver is IResolver, AccessControl {
   }
 
   /// @dev creates a new session
-  function sessionCreation(
+  function createSession(
     uint256 duration,
     string memory sessionTitle
   ) public returns (bytes32 sessionId) {
@@ -280,7 +280,7 @@ contract Resolver is IResolver, AccessControl {
     sessionId = keccak256(abi.encodePacked(msg.sender, sessionTitle));
 
     // Check if the session already exists
-    if (_session[sessionId].host != address(0)) {
+    if (_session[sessionId].host == address(0)) {
       revert InvalidSession();
     }
 
@@ -292,7 +292,14 @@ contract Resolver is IResolver, AccessControl {
       endTime: block.timestamp + sessionDuration
     });
 
+    //Store the session
     _session[sessionId] = session;
+
+    //Enable the host and attendee attestation related to the session
+    string memory hostAttestationTitle = string(abi.encodePacked("Host_", sessionTitle));
+    _allowedAttestationTitles[keccak256(abi.encode(hostAttestationTitle))] = true;
+    string memory attendeeAttestationTitle = string(abi.encodePacked("Attendee_", sessionTitle));
+    _allowedAttestationTitles[keccak256(abi.encode(attendeeAttestationTitle))] = true;
 
     return sessionId;
   }
