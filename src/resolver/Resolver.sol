@@ -19,6 +19,7 @@ error NotPayable();
 error Unauthorized();
 error InvalidSession();
 error NotHostOfTheSession();
+error SessionAlreadyEnded();
 
 /// @author Blockful | 0xneves
 /// @notice ZuVillage Resolver contract for Ethereum Attestation Service.
@@ -51,6 +52,38 @@ contract Resolver is IResolver, AccessControl {
 
   // Define a constant for default SESSION_DURATION (30 days in seconds)
   uint256 private constant DEFAULT_SESSION_DURATION = 30 days;
+
+  /// @notice Emitted when a new session is created
+  /// @param sessionId The unique identifier of the session
+  /// @param host The address of the session host
+  /// @param title The title of the session
+  /// @param startTime The timestamp when the session starts
+  /// @param endTime The timestamp when the session ends
+  event sessionCreated(
+    bytes32 indexed sessionId,
+    address indexed host,
+    string title,
+    uint256 startTime,
+    uint256 endTime
+  );
+
+  /// @notice Emitted when a session is closed
+  /// @param sessionId The unique identifier of the closed session
+  /// @param host The address of the session host
+  /// @param title The title of the closed session
+  /// @param startTime The timestamp when the session started
+  /// @param endTime The timestamp when the session ended
+  event sessionClosed(
+    bytes32 indexed sessionId,
+    address indexed host,
+    string title,
+    uint256 startTime,
+    uint256 endTime
+  );
+
+  /// @notice Emitted when a session is removed
+  /// @param sessionId The unique identifier of the removed session
+  event sessionRemoved(bytes32 indexed sessionId);
 
   /// @dev Creates a new resolver.
   /// @param eas The address of the global EAS contract.
@@ -318,6 +351,8 @@ contract Resolver is IResolver, AccessControl {
     //Store the session
     _session[sessionId] = session;
 
+    emit sessionCreated(sessionId, msg.sender, sessionTitle, session.startTime, session.endTime);
+
     //Enable the host and attendee attestation related to the session
     string memory hostAttestationTitle = string(abi.encodePacked("Host_", sessionTitle));
     _allowedAttestationTitles[keccak256(abi.encode(hostAttestationTitle))] = true;
@@ -325,6 +360,40 @@ contract Resolver is IResolver, AccessControl {
     _allowedAttestationTitles[keccak256(abi.encode(attendeeAttestationTitle))] = true;
 
     return sessionId;
+  }
+
+  /// @dev Remove a session.
+  function removeSesison(
+    string memory sessionTitle,
+    address sessionOwner
+  ) external onlyRole(ROOT_ROLE) {
+    bytes32 sessionId = keccak256(abi.encodePacked(sessionOwner, sessionTitle));
+    delete _session[sessionId];
+    emit sessionRemoved(sessionId);
+  }
+
+  /// @dev Get a session.
+  function getSession(
+    string memory sessionTitle,
+    address sessionOwner
+  ) external view returns (Session memory) {
+    bytes32 sessionId = keccak256(abi.encodePacked(sessionOwner, sessionTitle));
+    return _session[sessionId];
+  }
+
+  /// @dev Close a session.
+  function closeSession(bytes32 sessionId) public onlyRole(VILLAGER_ROLE) {
+    Session storage session = _session[sessionId];
+
+    if (session.endTime < block.timestamp) {
+      revert SessionAlreadyEnded();
+    }
+    if ((session.host != msg.sender) && !hasRole(MANAGER_ROLE, msg.sender)) {
+      revert Unauthorized();
+    }
+
+    session.endTime = block.timestamp;
+    emit sessionClosed(sessionId, msg.sender, session.title, session.startTime, session.endTime);
   }
 
   /// @dev ETH callback.
