@@ -88,4 +88,8 @@ interface IResolver {
     string memory sessionTitle,
     address sessionOwner
   ) external view returns (Session memory);
+
+  /// @notice Closes an existing session.
+  /// @param sessionId The id of the session to be closed.
+  function closeSession(bytes32 sessionId) external;
 }
