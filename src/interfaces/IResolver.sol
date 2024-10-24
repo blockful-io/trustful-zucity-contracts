@@ -15,6 +15,14 @@ interface IResolver {
     REPLY
   }
 
+  /// @notice A struct representing a single Session.
+  struct Session {
+    address host; // Host of the session
+    string title; // Title of the session
+    uint256 startTime; // The time when the session was created (Unix timestamp).
+    uint256 endTime; // The time when the session was ended (Unix timestamp).
+  }
+
   /// @notice Checks if the resolver can be sent ETH.
   /// @return Whether the resolver supports ETH transfers.
   function isPayable() external pure returns (bool);
@@ -58,8 +66,26 @@ interface IResolver {
   /// @param action The action that the role can perform on the schema.
   function setSchema(bytes32 uid, uint256 action) external;
 
+  /// @notice Creates a new session with a specified duration and title.
+  /// @param duration The duration of the session in seconds.
+  /// @param sessionTitle The title of the session.
+  /// @return sessionId The unique identifier of the created session.
   function createSession(
     uint256 duration,
     string memory sessionTitle
   ) external returns (bytes32 sessionId);
+
+  /// @notice Removes an existing session.
+  /// @param sessionTitle The title of the session to be removed.
+  /// @param sessionOwner The address of the owner of the session.
+  function removeSesison(string memory sessionTitle, address sessionOwner) external;
+
+  /// @notice Retrieves session details by session ID.
+  /// @param sessionTitle The title of the session.
+  /// @param sessionOwner The address of the owner of the session.
+  /// @return The session details.
+  function getSession(
+    string memory sessionTitle,
+    address sessionOwner
+  ) external view returns (Session memory);
 }

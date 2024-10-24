@@ -327,6 +327,24 @@ contract Resolver is IResolver, AccessControl {
     return sessionId;
   }
 
+  /// @dev Remove a session.
+  function removeSesison(
+    string memory sessionTitle,
+    address sessionOwner
+  ) external onlyRole(ROOT_ROLE) {
+    bytes32 sessionId = keccak256(abi.encodePacked(sessionOwner, sessionTitle));
+    delete _session[sessionId];
+  }
+
+  /// @dev Get a session.
+  function getSession(
+    string memory sessionTitle,
+    address sessionOwner
+  ) external view returns (Session memory) {
+    bytes32 sessionId = keccak256(abi.encodePacked(sessionOwner, sessionTitle));
+    return _session[sessionId];
+  }
+
   /// @dev ETH callback.
   receive() external payable virtual {
     if (!isPayable()) {

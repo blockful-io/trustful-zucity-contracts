@@ -349,4 +349,23 @@ contract ResolverTest is Test {
 
     vm.stopPrank();
   }
+
+  function test_remove_session() public {
+    address villager = roleReceiver;
+    string memory sessionTitle = "Test Session";
+    uint256 duration = 1 days;
+
+    grantRole(VILLAGER_ROLE, villager);
+
+    vm.startPrank(villager);
+    bytes32 sessionId = resolver.createSession(duration, sessionTitle);
+    vm.stopPrank();
+    assert(sessionId != bytes32(0));
+
+    vm.startPrank(deployer);
+    resolver.removeSesison(sessionTitle, villager);
+    vm.stopPrank();
+    address host = resolver.getSession(sessionTitle, villager).host;
+    assert(host == address(0));
+  }
 }
