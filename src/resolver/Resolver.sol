@@ -5,7 +5,7 @@ pragma solidity ^0.8.4;
 import { IEAS, Attestation } from "../interfaces/IEAS.sol";
 import { IResolver } from "../interfaces/IResolver.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
-import { AccessDenied, InvalidEAS, InvalidLength, uncheckedInc, EMPTY_UID, NO_EXPIRATION_TIME } from "../Common.sol";
+import { AccessDenied, InvalidEAS, InvalidLength, uncheckedInc, EMPTY_UID, NO_EXPIRATION_TIME, Session, slice } from "../Common.sol";
 
 error AlreadyHasResponse();
 error InsufficientValue();
@@ -17,6 +17,8 @@ error InvalidRole();
 error InvalidWithdraw();
 error NotPayable();
 error Unauthorized();
+error InvalidSession();
+error NotHostOfTheSession();
 
 /// @author Blockful | 0xneves
 /// @notice ZuVillage Resolver contract for Ethereum Attestation Service.
@@ -41,8 +43,14 @@ contract Resolver is IResolver, AccessControl {
   // Maps schemas ID and role ID to action
   mapping(bytes32 => Action) private _allowedSchemas;
 
+  // Maps session ids and sessions Structures
+  mapping(bytes32 => Session) private _session;
+
   // Maps all attestation titles (badge titles) to be retrieved by the frontend
   string[] private _attestationTitles;
+
+  // Define a constant for default SESSION_DURATION (30 days in seconds)
+  uint256 private constant DEFAULT_SESSION_DURATION = 30 days;
 
   /// @dev Creates a new resolver.
   /// @param eas The address of the global EAS contract.
@@ -205,7 +213,30 @@ contract Resolver is IResolver, AccessControl {
     (string memory title, ) = abi.decode(attestation.data, (string, string));
     if (!_allowedAttestationTitles[keccak256(abi.encode(title))]) revert InvalidAttestationTitle();
 
+    // Check if it is a host-only attestation and if the attester is the host
+    if (isHostOnlyAttestation(title)) {
+      if (!isAttesterHost(attestation.attester, title)) revert NotHostOfTheSession();
+    }
+
     return true;
+  }
+
+  /// @dev Checks if the attestation is a host-only attestation
+  function isHostOnlyAttestation(string memory title) internal pure returns (bool) {
+    bytes memory titleBytes = bytes(title);
+    return
+      titleBytes.length >= 5 &&
+      (keccak256(abi.encodePacked(slice(titleBytes, 0, 5))) == keccak256("Host_") ||
+        keccak256(abi.encodePacked(slice(titleBytes, 0, 9))) == keccak256("Attendee_"));
+  }
+
+  /// @dev Checks if the attester is the host of the session
+  function isAttesterHost(address attester, string memory title) internal view returns (bool) {
+    bytes memory titleBytes = bytes(title);
+    string memory sessionTitle = string(slice(titleBytes, 5, titleBytes.length - 5));
+    bytes32 sessionId = keccak256(abi.encodePacked(attester, sessionTitle));
+
+    return _session[sessionId].host == attester;
   }
 
   /// @dev Attest a response to an event badge emitted by {attestEvent}.
@@ -257,6 +288,43 @@ contract Resolver is IResolver, AccessControl {
   /// @inheritdoc IResolver
   function setSchema(bytes32 uid, uint256 action) public onlyRole(ROOT_ROLE) {
     _allowedSchemas[uid] = Action(action);
+  }
+
+  /// @dev creates a new session
+  function createSession(
+    uint256 duration,
+    string memory sessionTitle
+  ) public returns (bytes32 sessionId) {
+    if (!hasRole(VILLAGER_ROLE, msg.sender)) revert InvalidRole();
+    if (duration == 0) revert InvalidSession();
+    if (bytes(sessionTitle).length == 0) revert InvalidSession();
+
+    // Generate a unique session ID
+    sessionId = keccak256(abi.encodePacked(msg.sender, sessionTitle));
+
+    // Check if the session already exists
+    if (_session[sessionId].host != address(0)) {
+      revert InvalidSession();
+    }
+
+    uint256 sessionDuration = duration > 0 ? duration : DEFAULT_SESSION_DURATION;
+    Session memory session = Session({
+      host: msg.sender,
+      title: sessionTitle,
+      startTime: block.timestamp,
+      endTime: block.timestamp + sessionDuration
+    });
+
+    //Store the session
+    _session[sessionId] = session;
+
+    //Enable the host and attendee attestation related to the session
+    string memory hostAttestationTitle = string(abi.encodePacked("Host_", sessionTitle));
+    _allowedAttestationTitles[keccak256(abi.encode(hostAttestationTitle))] = true;
+    string memory attendeeAttestationTitle = string(abi.encodePacked("Attendee_", sessionTitle));
+    _allowedAttestationTitles[keccak256(abi.encode(attendeeAttestationTitle))] = true;
+
+    return sessionId;
   }
 
   /// @dev ETH callback.
