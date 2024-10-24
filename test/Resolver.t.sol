@@ -183,7 +183,7 @@ contract ResolverTest is Test {
 
     // Create a session
     vm.startPrank(host);
-    resolver.createSession(0, sessionTitle);
+    resolver.createSession(10, sessionTitle);
 
     // Prepare attestation data
     string memory hostTitle = string(abi.encodePacked("Host_", sessionTitle));
@@ -219,7 +219,7 @@ contract ResolverTest is Test {
 
     // Create a session
     vm.startPrank(host);
-    resolver.createSession(0, sessionTitle);
+    resolver.createSession(10, sessionTitle);
 
     // Prepare attestation data
     string memory hostTitle = string(abi.encodePacked("Host_", sessionTitle));

@@ -295,10 +295,9 @@ contract Resolver is IResolver, AccessControl {
     uint256 duration,
     string memory sessionTitle
   ) public returns (bytes32 sessionId) {
-    // Check if the caller is a Villager
-    if (!hasRole(VILLAGER_ROLE, msg.sender)) {
-      revert InvalidRole();
-    }
+    if (!hasRole(VILLAGER_ROLE, msg.sender)) revert InvalidRole();
+    if (duration == 0) revert InvalidSession();
+    if (bytes(sessionTitle).length == 0) revert InvalidSession();
 
     // Generate a unique session ID
     sessionId = keccak256(abi.encodePacked(msg.sender, sessionTitle));
