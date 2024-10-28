@@ -36,9 +36,26 @@ struct Attestation {
   bytes data; // Custom attestation data.
 }
 
+/// @notice A struct representing a single Session.
+struct Session {
+  address host; // Host of the session
+  string title; // Title of the session
+  uint256 startTime; // The time when the session was created (Unix timestamp).
+  uint256 endTime; // The time when the session was ended (Unix timestamp).
+}
+
 /// @notice A helper function to work with unchecked iterators in loops.
 function uncheckedInc(uint256 i) pure returns (uint256 j) {
   unchecked {
     j = i + 1;
   }
+}
+
+/// @dev Helper function to slice a byte array
+function slice(bytes memory data, uint256 start, uint256 length) pure returns (bytes memory) {
+  bytes memory result = new bytes(length);
+  for (uint i = 0; i < length; i++) {
+    result[i] = data[start + i];
+  }
+  return result;
 }

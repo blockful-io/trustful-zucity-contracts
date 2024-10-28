@@ -57,4 +57,9 @@ interface IResolver {
   /// @param uid The UID of the schema.
   /// @param action The action that the role can perform on the schema.
   function setSchema(bytes32 uid, uint256 action) external;
+
+  function createSession(
+    uint256 duration,
+    string memory sessionTitle
+  ) external returns (bytes32 sessionId);
 }
