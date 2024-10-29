@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import { Attestation } from "../Common.sol";
+import { Attestation, MultiAttestationRequest } from "../Common.sol";
 
 /// @notice The interface of the {Resolver} contract.
 interface IResolver {
@@ -57,4 +57,9 @@ interface IResolver {
   /// @param uid The UID of the schema.
   /// @param action The action that the role can perform on the schema.
   function setSchema(bytes32 uid, uint256 action) external;
+
+  function multiAttest(
+    Attestation[] calldata attestations,
+    uint256[] calldata values
+  ) external payable returns (bool);
 }

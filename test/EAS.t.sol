@@ -5,7 +5,7 @@ import { Test, console2 } from "forge-std/src/Test.sol";
 import { Resolver } from "../src/resolver/Resolver.sol";
 import { IResolver } from "../src/interfaces/IResolver.sol";
 import { ISchemaRegistry } from "../src/interfaces/ISchemaRegistry.sol";
-import { IEAS, AttestationRequest, AttestationRequestData, RevocationRequest, RevocationRequestData } from "../src/interfaces/IEAS.sol";
+import { IEAS, AttestationRequest, AttestationRequestData, RevocationRequest, RevocationRequestData, Attestation, MultiAttestationRequest } from "../src/interfaces/IEAS.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 contract ResolverTest is Test {
@@ -392,5 +392,134 @@ contract ResolverTest is Test {
     } catch {
       return false;
     }
+  }
+
+  function test_multi_attest_villager() public {
+    bytes32[] memory uids = register_allowed_schemas();
+
+    // Assign manager role to be able to check in villagers
+    vm.startPrank(deployer);
+    attest_manager(uids[0], manager, "Manager");
+
+    address villager1 = address(0x1111);
+    address villager2 = address(0x2222);
+
+    vm.deal(manager, 1 ether);
+    vm.startPrank(manager);
+
+    // Create an array of MultiAttestationRequest
+    MultiAttestationRequest[] memory requests = new MultiAttestationRequest[](1);
+
+    // Create an array of AttestationRequestData for your two attestations
+    AttestationRequestData[] memory attestationData = new AttestationRequestData[](2);
+
+    attestationData[0] = AttestationRequestData({
+      recipient: villager1,
+      expirationTime: 0,
+      revocable: false,
+      refUID: bytes32(0),
+      data: abi.encode("Check-in"),
+      value: 0
+    });
+
+    attestationData[1] = AttestationRequestData({
+      recipient: villager2,
+      expirationTime: 0,
+      revocable: false,
+      refUID: bytes32(0),
+      data: abi.encode("Check-in"),
+      value: 0
+    });
+
+    // Create the MultiAttestationRequest
+    requests[0] = MultiAttestationRequest({ schema: uids[1], data: attestationData });
+
+    // Call multiAttest
+    uint256 amountInWei = 0.1 ether;
+    bytes32[] memory attestationUIDs = eas.multiAttest{ value: amountInWei }(requests);
+
+    // Verify that both villagers have been assigned the VILLAGER_ROLE
+    assert(IAccessControl(address(resolver)).hasRole(VILLAGER_ROLE, villager1));
+    assert(IAccessControl(address(resolver)).hasRole(VILLAGER_ROLE, villager2));
+  }
+
+  function test_multi_attest_unauthorized() public {
+    bytes32[] memory uids = register_allowed_schemas();
+
+    // Assign manager role to be able to check in villagers
+    vm.startPrank(deployer);
+    attest_manager(uids[0], manager, "Manager");
+
+    address villager1 = address(0x1111);
+    address villager2 = address(0x2222);
+
+    vm.deal(manager, 1 ether);
+    vm.startPrank(manager);
+
+    // Create an array of MultiAttestationRequest
+    MultiAttestationRequest[] memory requests = new MultiAttestationRequest[](1);
+
+    // Create an array of AttestationRequestData for your two attestations
+    AttestationRequestData[] memory attestationData = new AttestationRequestData[](2);
+
+    attestationData[0] = AttestationRequestData({
+      recipient: villager1,
+      expirationTime: 0,
+      revocable: false,
+      refUID: bytes32(0),
+      data: abi.encode("Check-in"),
+      value: 0
+    });
+
+    attestationData[1] = AttestationRequestData({
+      recipient: villager2,
+      expirationTime: 0,
+      revocable: false,
+      refUID: bytes32(0),
+      data: abi.encode("Changed My Mind"),
+      value: 0
+    });
+
+    // Create the MultiAttestationRequest
+    vm.expectRevert();
+    eas.multiAttest{ value: 0.1 ether }(requests);
+  }
+
+  function test_multi_attest_() public {
+    bytes32[] memory uids = register_allowed_schemas();
+
+    address villager1 = address(0x1111);
+    address villager2 = address(0x2222);
+
+    vm.deal(manager, 1 ether);
+    vm.startPrank(manager);
+
+    // Create an array of MultiAttestationRequest
+    MultiAttestationRequest[] memory requests = new MultiAttestationRequest[](1);
+
+    // Create an array of AttestationRequestData for your two attestations
+    AttestationRequestData[] memory attestationData = new AttestationRequestData[](2);
+
+    attestationData[0] = AttestationRequestData({
+      recipient: villager1,
+      expirationTime: 0,
+      revocable: false,
+      refUID: bytes32(0),
+      data: abi.encode("Check-in"),
+      value: 0
+    });
+
+    attestationData[1] = AttestationRequestData({
+      recipient: villager2,
+      expirationTime: 0,
+      revocable: false,
+      refUID: bytes32(0),
+      data: abi.encode("Check-in"),
+      value: 0
+    });
+
+    // Create the MultiAttestationRequest
+    vm.expectRevert();
+    eas.multiAttest{ value: 0.1 ether }(requests);
   }
 }

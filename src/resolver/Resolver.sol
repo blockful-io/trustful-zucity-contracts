@@ -5,7 +5,7 @@ pragma solidity ^0.8.4;
 import { IEAS, Attestation } from "../interfaces/IEAS.sol";
 import { IResolver } from "../interfaces/IResolver.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
-import { AccessDenied, InvalidEAS, InvalidLength, uncheckedInc, EMPTY_UID, NO_EXPIRATION_TIME } from "../Common.sol";
+import { AccessDenied, InvalidEAS, InvalidLength, uncheckedInc, EMPTY_UID, NO_EXPIRATION_TIME, MultiAttestationRequest } from "../Common.sol";
 
 error AlreadyHasResponse();
 error InsufficientValue();
@@ -63,6 +63,8 @@ contract Resolver is IResolver, AccessControl {
 
   /// @dev Ensures that only the EAS contract can make this call.
   modifier onlyEAS() {
+    emit LogDebug("sender", uint256(uint160(msg.sender)));
+    emit LogDebug("eas", uint256(uint160(address(_eas))));
     if (msg.sender != address(_eas)) revert AccessDenied();
     _;
   }
@@ -94,29 +96,7 @@ contract Resolver is IResolver, AccessControl {
 
   /// @inheritdoc IResolver
   function attest(Attestation calldata attestation) external payable onlyEAS returns (bool) {
-    // Prohibits the attestation expiration to be finite
-    if (attestation.expirationTime != NO_EXPIRATION_TIME) revert InvalidExpiration();
-
-    // Schema to assign managers
-    if (isActionAllowed(attestation.schema, Action.ASSIGN_MANAGER))
-      return assignManager(attestation);
-
-    // Schema to checkIn / checkOut villagers
-    if (isActionAllowed(attestation.schema, Action.ASSIGN_VILLAGER)) {
-      return assignVillager(attestation);
-    }
-
-    // Schema to create event attestations (Attestations)
-    if (isActionAllowed(attestation.schema, Action.ATTEST)) {
-      return attestEvent(attestation);
-    }
-
-    // Schema to create a response ( true / false )
-    if (isActionAllowed(attestation.schema, Action.REPLY)) {
-      return attestResponse(attestation);
-    }
-
-    return false;
+    return onAttest(attestation);
   }
 
   /// @inheritdoc IResolver
@@ -141,6 +121,8 @@ contract Resolver is IResolver, AccessControl {
 
   /// @dev Assign new managers to the contract.
   function assignManager(Attestation calldata attestation) internal returns (bool) {
+    emit LogDebug("aqui", 0);
+
     if (hasRole(ROOT_ROLE, attestation.attester) || hasRole(MANAGER_ROLE, attestation.attester)) {
       if (
         hasRole(MANAGER_ROLE, attestation.recipient) || _receivedManagerBadge[attestation.recipient]
@@ -259,10 +241,52 @@ contract Resolver is IResolver, AccessControl {
     _allowedSchemas[uid] = Action(action);
   }
 
+  /// @inheritdoc IResolver
+  function multiAttest(
+    Attestation[] calldata attestations,
+    uint256[] calldata values
+  ) external payable onlyEAS returns (bool) {
+    for (uint256 i = 0; i < attestations.length; i = uncheckedInc(i)) {
+      if (!onAttest(attestations[i])) {
+        revert("Attestation failed");
+      }
+    }
+    return true;
+  }
+
+  /// @dev Internal function to handle attestation logic
+  function onAttest(Attestation calldata attestation) internal returns (bool) {
+    // Prohibits the attestation expiration to be finite
+    if (attestation.expirationTime != NO_EXPIRATION_TIME) revert InvalidExpiration();
+
+    // Schema to assign managers
+    if (isActionAllowed(attestation.schema, Action.ASSIGN_MANAGER))
+      return assignManager(attestation);
+
+    // Schema to checkIn / checkOut villagers
+    if (isActionAllowed(attestation.schema, Action.ASSIGN_VILLAGER)) {
+      return assignVillager(attestation);
+    }
+
+    // Schema to create event attestations (Attestations)
+    if (isActionAllowed(attestation.schema, Action.ATTEST)) {
+      return attestEvent(attestation);
+    }
+
+    // Schema to create a response ( true / false )
+    if (isActionAllowed(attestation.schema, Action.REPLY)) {
+      return attestResponse(attestation);
+    }
+
+    return false;
+  }
+
   /// @dev ETH callback.
   receive() external payable virtual {
     if (!isPayable()) {
       revert NotPayable();
     }
   }
+
+  event LogDebug(string message, uint256 value);
 }
