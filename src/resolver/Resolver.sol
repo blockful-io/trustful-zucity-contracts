@@ -5,7 +5,8 @@ pragma solidity ^0.8.4;
 import { IEAS, Attestation } from "../interfaces/IEAS.sol";
 import { IResolver } from "../interfaces/IResolver.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
-import { AccessDenied, InvalidEAS, InvalidLength, uncheckedInc, EMPTY_UID, NO_EXPIRATION_TIME, MultiAttestationRequest } from "../Common.sol";
+import { AccessDenied, InvalidEAS, InvalidLength, uncheckedInc, EMPTY_UID, NO_EXPIRATION_TIME, Session, slice, MultiAttestationRequest } from "../Common.sol";
+
 
 error AlreadyHasResponse();
 error InsufficientValue();
@@ -17,6 +18,9 @@ error InvalidRole();
 error InvalidWithdraw();
 error NotPayable();
 error Unauthorized();
+error InvalidSession();
+error NotHostOfTheSession();
+error SessionAlreadyEnded();
 
 /// @author Blockful | 0xneves
 /// @notice ZuVillage Resolver contract for Ethereum Attestation Service.
@@ -41,8 +45,46 @@ contract Resolver is IResolver, AccessControl {
   // Maps schemas ID and role ID to action
   mapping(bytes32 => Action) private _allowedSchemas;
 
+  // Maps session ids and sessions Structures
+  mapping(bytes32 => Session) private _session;
+
   // Maps all attestation titles (badge titles) to be retrieved by the frontend
   string[] private _attestationTitles;
+
+  // Define a constant for default SESSION_DURATION (30 days in seconds)
+  uint256 private constant DEFAULT_SESSION_DURATION = 30 days;
+
+  /// @notice Emitted when a new session is created
+  /// @param sessionId The unique identifier of the session
+  /// @param host The address of the session host
+  /// @param title The title of the session
+  /// @param startTime The timestamp when the session starts
+  /// @param endTime The timestamp when the session ends
+  event sessionCreated(
+    bytes32 indexed sessionId,
+    address indexed host,
+    string title,
+    uint256 startTime,
+    uint256 endTime
+  );
+
+  /// @notice Emitted when a session is closed
+  /// @param sessionId The unique identifier of the closed session
+  /// @param host The address of the session host
+  /// @param title The title of the closed session
+  /// @param startTime The timestamp when the session started
+  /// @param endTime The timestamp when the session ended
+  event sessionClosed(
+    bytes32 indexed sessionId,
+    address indexed host,
+    string title,
+    uint256 startTime,
+    uint256 endTime
+  );
+
+  /// @notice Emitted when a session is removed
+  /// @param sessionId The unique identifier of the removed session
+  event sessionRemoved(bytes32 indexed sessionId);
 
   /// @dev Creates a new resolver.
   /// @param eas The address of the global EAS contract.
@@ -183,7 +225,30 @@ contract Resolver is IResolver, AccessControl {
     (string memory title, ) = abi.decode(attestation.data, (string, string));
     if (!_allowedAttestationTitles[keccak256(abi.encode(title))]) revert InvalidAttestationTitle();
 
+    // Check if it is a host-only attestation and if the attester is the host
+    if (isHostOnlyAttestation(title)) {
+      if (!isAttesterHost(attestation.attester, title)) revert NotHostOfTheSession();
+    }
+
     return true;
+  }
+
+  /// @dev Checks if the attestation is a host-only attestation
+  function isHostOnlyAttestation(string memory title) internal pure returns (bool) {
+    bytes memory titleBytes = bytes(title);
+    return
+      titleBytes.length >= 5 &&
+      (keccak256(abi.encodePacked(slice(titleBytes, 0, 5))) == keccak256("Host_") ||
+        keccak256(abi.encodePacked(slice(titleBytes, 0, 9))) == keccak256("Attendee_"));
+  }
+
+  /// @dev Checks if the attester is the host of the session
+  function isAttesterHost(address attester, string memory title) internal view returns (bool) {
+    bytes memory titleBytes = bytes(title);
+    string memory sessionTitle = string(slice(titleBytes, 5, titleBytes.length - 5));
+    bytes32 sessionId = keccak256(abi.encodePacked(attester, sessionTitle));
+
+    return _session[sessionId].host == attester;
   }
 
   /// @dev Attest a response to an event badge emitted by {attestEvent}.
@@ -275,6 +340,79 @@ contract Resolver is IResolver, AccessControl {
     }
 
     return false;
+}
+
+  /// @dev creates a new session
+  function createSession(
+    uint256 duration,
+    string memory sessionTitle
+  ) public returns (bytes32 sessionId) {
+    if (!hasRole(VILLAGER_ROLE, msg.sender)) revert InvalidRole();
+    if (duration == 0) revert InvalidSession();
+    if (bytes(sessionTitle).length == 0) revert InvalidSession();
+
+    // Generate a unique session ID
+    sessionId = keccak256(abi.encodePacked(msg.sender, sessionTitle));
+
+    // Check if the session already exists
+    if (_session[sessionId].host != address(0)) {
+      revert InvalidSession();
+    }
+
+    uint256 sessionDuration = duration > 0 ? duration : DEFAULT_SESSION_DURATION;
+    Session memory session = Session({
+      host: msg.sender,
+      title: sessionTitle,
+      startTime: block.timestamp,
+      endTime: block.timestamp + sessionDuration
+    });
+
+    //Store the session
+    _session[sessionId] = session;
+
+    emit sessionCreated(sessionId, msg.sender, sessionTitle, session.startTime, session.endTime);
+
+    //Enable the host and attendee attestation related to the session
+    string memory hostAttestationTitle = string(abi.encodePacked("Host_", sessionTitle));
+    _allowedAttestationTitles[keccak256(abi.encode(hostAttestationTitle))] = true;
+    string memory attendeeAttestationTitle = string(abi.encodePacked("Attendee_", sessionTitle));
+    _allowedAttestationTitles[keccak256(abi.encode(attendeeAttestationTitle))] = true;
+
+    return sessionId;
+  }
+
+  /// @dev Remove a session.
+  function removeSesison(
+    string memory sessionTitle,
+    address sessionOwner
+  ) external onlyRole(ROOT_ROLE) {
+    bytes32 sessionId = keccak256(abi.encodePacked(sessionOwner, sessionTitle));
+    delete _session[sessionId];
+    emit sessionRemoved(sessionId);
+  }
+
+  /// @dev Get a session.
+  function getSession(
+    string memory sessionTitle,
+    address sessionOwner
+  ) external view returns (Session memory) {
+    bytes32 sessionId = keccak256(abi.encodePacked(sessionOwner, sessionTitle));
+    return _session[sessionId];
+  }
+
+  /// @dev Close a session.
+  function closeSession(bytes32 sessionId) public onlyRole(VILLAGER_ROLE) {
+    Session storage session = _session[sessionId];
+
+    if (session.endTime < block.timestamp) {
+      revert SessionAlreadyEnded();
+    }
+    if ((session.host != msg.sender) && !hasRole(MANAGER_ROLE, msg.sender)) {
+      revert Unauthorized();
+    }
+
+    session.endTime = block.timestamp;
+    emit sessionClosed(sessionId, msg.sender, session.title, session.startTime, session.endTime);
   }
 
   /// @dev ETH callback.
