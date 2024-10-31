@@ -485,7 +485,7 @@ contract ResolverTest is Test {
     eas.multiAttest{ value: 0.1 ether }(requests);
   }
 
-  function test_multi_attest_() public {
+  function test_multi_attest_without_manager_role() public {
     bytes32[] memory uids = register_allowed_schemas();
 
     address villager1 = address(0x1111);
