@@ -63,8 +63,6 @@ contract Resolver is IResolver, AccessControl {
 
   /// @dev Ensures that only the EAS contract can make this call.
   modifier onlyEAS() {
-    emit LogDebug("sender", uint256(uint160(msg.sender)));
-    emit LogDebug("eas", uint256(uint160(address(_eas))));
     if (msg.sender != address(_eas)) revert AccessDenied();
     _;
   }
@@ -121,8 +119,6 @@ contract Resolver is IResolver, AccessControl {
 
   /// @dev Assign new managers to the contract.
   function assignManager(Attestation calldata attestation) internal returns (bool) {
-    emit LogDebug("aqui", 0);
-
     if (hasRole(ROOT_ROLE, attestation.attester) || hasRole(MANAGER_ROLE, attestation.attester)) {
       if (
         hasRole(MANAGER_ROLE, attestation.recipient) || _receivedManagerBadge[attestation.recipient]
@@ -288,5 +284,4 @@ contract Resolver is IResolver, AccessControl {
     }
   }
 
-  event LogDebug(string message, uint256 value);
 }
