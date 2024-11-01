@@ -36,12 +36,6 @@ struct Attestation {
   bytes data; // Custom attestation data.
 }
 
-/// @notice A struct representing the full arguments of the multi attestation request.
-struct MultiAttestationRequest {
-  bytes32 schema; // The unique identifier of the schema.
-  Attestation[] data; // The arguments of the attestation request.
-} 
- 
 /// @notice A struct representing a single Session.
 struct Session {
   address host; // Host of the session

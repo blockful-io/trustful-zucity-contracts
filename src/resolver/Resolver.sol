@@ -5,7 +5,7 @@ pragma solidity ^0.8.4;
 import { IEAS, Attestation } from "../interfaces/IEAS.sol";
 import { IResolver } from "../interfaces/IResolver.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
-import { AccessDenied, InvalidEAS, InvalidLength, uncheckedInc, EMPTY_UID, NO_EXPIRATION_TIME, Session, slice, MultiAttestationRequest } from "../Common.sol";
+import { AccessDenied, InvalidEAS, InvalidLength, uncheckedInc, EMPTY_UID, NO_EXPIRATION_TIME, Session, slice } from "../Common.sol";
 
 
 error AlreadyHasResponse();

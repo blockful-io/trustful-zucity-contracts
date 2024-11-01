@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import { Attestation, MultiAttestationRequest } from "../Common.sol";
+import { Attestation } from "../Common.sol";
 
 /// @notice The interface of the {Resolver} contract.
 interface IResolver {
