@@ -7,6 +7,7 @@ import { IResolver } from "../interfaces/IResolver.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { AccessDenied, InvalidEAS, InvalidLength, uncheckedInc, EMPTY_UID, NO_EXPIRATION_TIME, Session, slice } from "../Common.sol";
 
+
 error AlreadyHasResponse();
 error InsufficientValue();
 error InvalidAttestationTitle();
@@ -135,29 +136,7 @@ contract Resolver is IResolver, AccessControl {
 
   /// @inheritdoc IResolver
   function attest(Attestation calldata attestation) external payable onlyEAS returns (bool) {
-    // Prohibits the attestation expiration to be finite
-    if (attestation.expirationTime != NO_EXPIRATION_TIME) revert InvalidExpiration();
-
-    // Schema to assign managers
-    if (isActionAllowed(attestation.schema, Action.ASSIGN_MANAGER))
-      return assignManager(attestation);
-
-    // Schema to checkIn / checkOut villagers
-    if (isActionAllowed(attestation.schema, Action.ASSIGN_VILLAGER)) {
-      return assignVillager(attestation);
-    }
-
-    // Schema to create event attestations (Attestations)
-    if (isActionAllowed(attestation.schema, Action.ATTEST)) {
-      return attestEvent(attestation);
-    }
-
-    // Schema to create a response ( true / false )
-    if (isActionAllowed(attestation.schema, Action.REPLY)) {
-      return attestResponse(attestation);
-    }
-
-    return false;
+    return onAttest(attestation);
   }
 
   /// @inheritdoc IResolver
@@ -323,6 +302,46 @@ contract Resolver is IResolver, AccessControl {
     _allowedSchemas[uid] = Action(action);
   }
 
+  /// @inheritdoc IResolver
+  function multiAttest(
+    Attestation[] calldata attestations,
+    uint256[] calldata values
+  ) external payable onlyEAS returns (bool) {
+    for (uint256 i = 0; i < attestations.length; i = uncheckedInc(i)) {
+      if (!onAttest(attestations[i])) {
+        revert("Attestation failed");
+      }
+    }
+    return true;
+  }
+
+  /// @dev Internal function to handle attestation logic
+  function onAttest(Attestation calldata attestation) internal returns (bool) {
+    // Prohibits the attestation expiration to be finite
+    if (attestation.expirationTime != NO_EXPIRATION_TIME) revert InvalidExpiration();
+
+    // Schema to assign managers
+    if (isActionAllowed(attestation.schema, Action.ASSIGN_MANAGER))
+      return assignManager(attestation);
+
+    // Schema to checkIn / checkOut villagers
+    if (isActionAllowed(attestation.schema, Action.ASSIGN_VILLAGER)) {
+      return assignVillager(attestation);
+    }
+
+    // Schema to create event attestations (Attestations)
+    if (isActionAllowed(attestation.schema, Action.ATTEST)) {
+      return attestEvent(attestation);
+    }
+
+    // Schema to create a response ( true / false )
+    if (isActionAllowed(attestation.schema, Action.REPLY)) {
+      return attestResponse(attestation);
+    }
+
+    return false;
+}
+
   /// @dev creates a new session
   function createSession(
     uint256 duration,
@@ -402,4 +421,5 @@ contract Resolver is IResolver, AccessControl {
       revert NotPayable();
     }
   }
+
 }

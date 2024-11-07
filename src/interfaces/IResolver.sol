@@ -66,6 +66,11 @@ interface IResolver {
   /// @param action The action that the role can perform on the schema.
   function setSchema(bytes32 uid, uint256 action) external;
 
+  function multiAttest(
+    Attestation[] calldata attestations,
+    uint256[] calldata values
+  ) external payable returns (bool);
+
   /// @notice Creates a new session with a specified duration and title.
   /// @param duration The duration of the session in seconds.
   /// @param sessionTitle The title of the session.
@@ -92,4 +97,5 @@ interface IResolver {
   /// @notice Closes an existing session.
   /// @param sessionId The id of the session to be closed.
   function closeSession(bytes32 sessionId) external;
+
 }
