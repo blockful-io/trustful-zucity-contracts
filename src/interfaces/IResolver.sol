@@ -83,7 +83,7 @@ interface IResolver {
   /// @notice Removes an existing session.
   /// @param sessionTitle The title of the session to be removed.
   /// @param sessionOwner The address of the owner of the session.
-  function removeSesison(string memory sessionTitle, address sessionOwner) external;
+  function removeSession(string memory sessionTitle, address sessionOwner) external;
 
   /// @notice Retrieves session details by session ID.
   /// @param sessionTitle The title of the session.
@@ -97,5 +97,4 @@ interface IResolver {
   /// @notice Closes an existing session.
   /// @param sessionId The id of the session to be closed.
   function closeSession(bytes32 sessionId) external;
-
 }

@@ -7,7 +7,6 @@ import { IResolver } from "../interfaces/IResolver.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { AccessDenied, InvalidEAS, InvalidLength, uncheckedInc, EMPTY_UID, NO_EXPIRATION_TIME, Session, slice } from "../Common.sol";
 
-
 error AlreadyHasResponse();
 error InsufficientValue();
 error InvalidAttestationTitle();
@@ -340,7 +339,7 @@ contract Resolver is IResolver, AccessControl {
     }
 
     return false;
-}
+  }
 
   /// @dev creates a new session
   function createSession(
@@ -382,7 +381,7 @@ contract Resolver is IResolver, AccessControl {
   }
 
   /// @dev Remove a session.
-  function removeSesison(
+  function removeSession(
     string memory sessionTitle,
     address sessionOwner
   ) external onlyRole(ROOT_ROLE) {
@@ -421,5 +420,4 @@ contract Resolver is IResolver, AccessControl {
       revert NotPayable();
     }
   }
-
 }
