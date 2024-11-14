@@ -245,6 +245,42 @@ contract ResolverTest is Test {
     vm.stopPrank();
   }
 
+
+  function test_attendee_attestation_allowed() public {
+    bytes32[] memory uids = test_access_control_add_schemas();
+    address host = roleReceiver;
+    address atendee = address(0x5678);
+
+    string memory sessionTitle = "TestSession";
+    grantRole(VILLAGER_ROLE, roleReceiver);
+    grantRole(VILLAGER_ROLE, atendee);
+
+    // Create a session
+    vm.startPrank(host);
+    resolver.createSession(10, sessionTitle);
+
+    // Prepare attestation data
+    string memory attendeeTitle = string(abi.encodePacked("Attendee_", sessionTitle));
+    bytes memory attestationData = abi.encode(attendeeTitle, "Test comment");
+
+    // Create attestation request
+    AttestationRequest memory request = AttestationRequest({
+      schema: uids[2],
+      data: AttestationRequestData({
+        recipient: address(0x5678),
+        expirationTime: 0,
+        revocable: false,
+        refUID: bytes32(0),
+        data: attestationData,
+        value: 0
+      })
+    });
+
+    bytes32 attestationUID = eas.attest(request);
+    vm.stopPrank();
+    assertTrue(eas.isAttestationValid(attestationUID), "Attestation should be valid");
+  }
+
   function test_create_session_as_villager() public {
     address villager = roleReceiver;
     string memory sessionTitle = "Test Session";
