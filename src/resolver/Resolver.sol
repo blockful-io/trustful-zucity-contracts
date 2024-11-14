@@ -7,7 +7,6 @@ import { IResolver } from "../interfaces/IResolver.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { AccessDenied, InvalidEAS, InvalidLength, uncheckedInc, EMPTY_UID, NO_EXPIRATION_TIME, Session, slice } from "../Common.sol";
 
-
 error AlreadyHasResponse();
 error InsufficientValue();
 error InvalidAttestationTitle();
@@ -245,9 +244,15 @@ contract Resolver is IResolver, AccessControl {
   /// @dev Checks if the attester is the host of the session
   function isAttesterHost(address attester, string memory title) internal view returns (bool) {
     bytes memory titleBytes = bytes(title);
-    string memory sessionTitle = string(slice(titleBytes, 5, titleBytes.length - 5));
-    bytes32 sessionId = keccak256(abi.encodePacked(attester, sessionTitle));
-
+    bytes32 sessionId;
+    if (keccak256(abi.encodePacked(slice(titleBytes, 0, 5))) == keccak256("Host_")) {
+      string memory sessionTitle = string(slice(titleBytes, 5, titleBytes.length-5));
+      sessionId = keccak256(abi.encodePacked(attester, sessionTitle));
+    }
+    else if (keccak256(abi.encodePacked(slice(titleBytes, 0, 9))) == keccak256("Attendee_")) {
+      string memory sessionTitle = string(slice(titleBytes, 9, titleBytes.length - 9));
+      sessionId = keccak256(abi.encodePacked(attester, sessionTitle));
+    }
     return _session[sessionId].host == attester;
   }
 
